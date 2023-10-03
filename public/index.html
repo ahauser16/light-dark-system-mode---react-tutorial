@@ -4,7 +4,18 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <meta name="theme-color" content="#000000" />
+    <!-- This meta tag is typically used to specify the color that the user's browser should use for the address bar, tabs, and other user interface elements when displaying your web application as a Progressive Web App (PWA).
+In the example you provided, it sets the theme color to black (#000000), which means that when a user adds your web app to their home screen on a mobile device or uses it as a PWA, the browser's UI elements will adopt a black theme color.
+It does not directly control the appearance or switching between light and dark modes within your application's UI. For that, you would need to use CSS media queries and the prefers-color-scheme media feature. -->
+
+    <meta name="color-scheme" content="light dark" />
+    <!-- This meta tag is used to specify the preferred color scheme(s) for your web application. It provides a hint to the browser about whether the user interface of your website or web app supports both light and dark modes.
+    In the example you provided, it indicates that your web app supports both light and dark color schemes.
+    This meta tag is used by browsers and operating systems to make decisions about when to switch between light and dark modes based on user preferences and system settings.
+    It can be beneficial when you want your website or web app to adapt to the user's system-wide preference for light or dark mode. -->
+    
     <meta
       name="description"
       content="Web site created using create-react-app"
@@ -24,7 +35,7 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <title>React App</title>
+    <title>Light, Dark & System Mode</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
