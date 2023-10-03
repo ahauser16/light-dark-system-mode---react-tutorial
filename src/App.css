@@ -1,3 +1,14 @@
-:root {
-  color-scheme: light dark;
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color: #111;
+  --background: #fff;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color: #cecece;
+  --background: #333;
+}
+body {
+  color: var(--color);
+  background: var(--background);
 }

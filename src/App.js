@@ -1,24 +1,46 @@
-import './App.css';
+import * as React from "react"
 
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        {/* <img src={logo} className="App-logo" alt="logo" /> */}
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+import { ThemeContext } from "./theme"
+
+const clearAndReload = () => {
+  localStorage.removeItem("mode")
+  document.location.reload()
 }
 
-export default App;
+export function App() {
+  const { theme, mode, setMode } = React.useContext(ThemeContext)
+  return (
+    <>
+      <div style={{ marginBottom: "1em" }}>
+        The current mode is <pre style={{ display: "inline" }}>{mode}</pre>,
+        which visually appears <pre style={{ display: "inline" }}>{theme}</pre>
+      </div>
+      <div style={{ marginBottom: "1em" }}>
+        Controls:{" "}
+        <button onClick={() => setMode("light")}>Switch to light</button>
+        <button onClick={() => setMode("dark")}>Switch to dark</button>
+        <button onClick={() => setMode("system")}>Switch to system</button>
+      </div>
+      <button onClick={clearAndReload}>Forget mode and reload page</button>
+
+      <br />
+
+      <p>
+        Here just a input date to show native inputs:
+        <br />
+        <input type="date" />
+        <br />
+      </p>
+
+      <p>
+        Go to{" "}
+        <a href="https://dev.to/ayc0/light-dark-mode-react-implementation-3aoa">
+          the related blog post
+        </a>{" "}
+        for more informations.
+        <br />
+        Ayc0 © – <a href="https://github.com/ayc0">https://github.com/ayc0</a>
+      </p>
+    </>
+  )
+}
