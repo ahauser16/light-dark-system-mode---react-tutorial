@@ -75,6 +75,8 @@ Note that these keywords are case insensitive, but are listed here with mixed ca
 ---
 ### [Using CSS custom properties (variables)](https://developer.mozilla.org/en-US/docs/Web/CSS/Using_CSS_custom_properties)
 ---
+### [React reference to Lazy Initial State](https://legacy.reactjs.org/docs/hooks-reference.html#lazy-initial-state)
+---
 ---
 # [I. Tutorial Part One](https://dev.to/ayc0/light-dark-mode-the-lazy-way-4j71)
 
@@ -443,3 +445,253 @@ The mode they previously picked on this browser will be initially picked. And th
 ### Results
 
 [Code Sandbox Results](https://codesandbox.io/s/light-dark-mode-react-implementation-forked-vgywjs?file=/src/theme.tsx)
+
+### Explanations
+#### CSS related:
+I went with something simple for the CSS: a data-attribute data-theme with 2 values light and dark, and I'm updating 2 css variables, than in the end control the look of the main body.
+
+And as in all other posts of this series, we need to set the color-scheme, ensuring that native elements will respond to the correct theme:
+
+```
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color: #111;
+  --background: #fff;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color: #cecece;
+  --background: #333;
+}
+body {
+  color: var(--color);
+  background: var(--background);
+}
+```
+
+#### Blocking Script
+As we want to avoid flicker during page loads, I added a small blocking script tag, performing only synchronous actions, that only checks for the most basic requirements to determine to best theme to display:
+```
+<script>
+  const mode = localStorage.getItem("mode") || "system";
+  let theme;
+  if (mode === "system") {
+    const isSystemInDarkMode = matchMedia("(prefers-color-scheme: dark)")
+      .matches;
+    theme = isSystemInDarkMode ? "dark" : "light";
+  } else {
+    // for light and dark, the theme is the mode
+    theme = mode;
+  }
+  document.documentElement.dataset.theme = theme;
+</script>
+```
+
+### Base variables
+First, we need to determine our variables: I'm gonna use mode for the saved modes (light / dark / system), and theme for the visual themes (light / dark):
+>Note I chose to not use the typescript implementation so the project does not include any typescript mentioned here or hereafter.
+
+### React context
+As we want to be able to provide some informations about the current mode/theme and also a way for users to change the mode, we'll create a React context containing everything:
+```
+const ThemeContext = React.createContext<{
+  mode: Mode;
+  theme: Theme;
+  setMode: (mode: Mode) => void;
+}>({
+  mode: "system",
+  theme: "light",
+  setMode: () => {}
+});
+```
+### Initialization of the mode
+We'll use a state (as its value can change and it should trigger updates) to store the mode.
+With `React.useState`, you can provide a function, called a [**lazy initial state**](https://legacy.reactjs.org/docs/hooks-reference.html#lazy-initial-state), that will only get called during the 1st render:
+```
+const [mode, setMode] = React.useState<Mode>(() => {
+  const initialMode =
+    (localStorage.getItem(localStorageKey) as Mode | undefined) || "system";
+  return initialMode;
+});
+```
+
+### Database sync
+Now that we have a `mode` state, we need to update it with the remote database. To do so, we could use an effect, but I decided to use another `useState`, which seems weird as I'm not using the returned state, but as mentioned above, lazy initial states are only called during the 1st render.
+This allows us to start the backend call during the render, and not after in an effect. And as we're starting the API call earlier, we'll also receive the response faster:
+```
+// This will only get called during the 1st render
+React.useState(() => {
+  getMode().then(setMode);
+});
+```
+
+### Save the mode in local storage & the database
+
+When the mode changes, we want to:
+
+* save it in the local storage (to avoid flashes on reload)
+* in the database (for cross-device support)
+
+The `useEffect` hook is the perfect use-case for that: we pass the `mode` in the [**dependencies array**](https://legacy.reactjs.org/docs/hooks-reference.html#conditionally-firing-an-effect), so that the effect will be called every time the mode changes:
+
+```
+React.useEffect(() => {
+  localStorage.setItem(localStorageKey, mode);
+  saveMode(mode); // database
+}, [mode]);
+```
+
+### Initialization of the mode
+Now that we have a way to get, save, and update the mode, we need a way to translate it to a visual theme.
+For this we will use another state (because theme change should trigger an update).
+
+We'll use another lazy initial state to synchronize the `system` mode with the theme users picked for their devices:
+
+```
+const [theme, setTheme] = React.useState<Theme>(() => {
+  if (mode !== "system") {
+    return mode;
+  }
+  const isSystemInDarkMode = matchMedia("(prefers-color-scheme: dark)")
+    .matches;
+  return isSystemInDarkMode ? "dark" : "light";
+});
+```
+
+### System theme update
+
+If users picked the `system` mode, we need to track down if they decide to change it from light to dark while still being in our system mode (which is why we are also using a state for the `theme`).
+
+To do so, we'll also use an effect that will detect any changes in the mode. In addition to that, when users are in the `system` mode, we'll get their current system theme and start an event listener to detect any changes in their theme:
+
+```
+React.useEffect(() => {
+  if (mode !== "system") {
+    setTheme(mode);
+    return;
+  }
+
+  const isSystemInDarkMode = matchMedia("(prefers-color-scheme: dark)");
+  // If system mode, immediately change theme according to the current system value
+  setTheme(isSystemInDarkMode.matches ? "dark" : "light");
+
+  // As the system value can change, we define an event listener when in system mode
+  // to track down its changes
+  const listener = (event: MediaQueryListEvent) => {
+    setTheme(event.matches ? "dark" : "light");
+  };
+  isSystemInDarkMode.addListener(listener);
+  return () => {
+    isSystemInDarkMode.removeListener(listener);
+  };
+}, [mode]);
+```
+
+### Apply the theme back to the HTML
+
+Now that we have a reliable `theme` state, we can make so that the CSS and the HTML follows this state:
+
+```
+React.useEffect(() => {
+  // Clear previous theme on the html and set the new one
+  document.documentElement.dataset.theme = theme;
+}, [theme]);
+```
+
+### Defining the context
+Now that we have all the variables we need, the last thing to do is to wrap the whole app in a context provider:
+
+```
+<ThemeContext.Provider value={{ theme, mode, setMode }}>
+  {children}
+</ThemeContext.Provider>
+```
+And when we need to refer to it, we can do:
+```
+const { theme, mode, setMode } = React.useContext(ThemeContext);
+```
+
+### Conclusion
+
+Handling multiple themes isn't trivial, especially if you want to provide the best experience possible for users while having handy tools for your fellow developers.
+
+Here I only presented one possible way of handling this, and it can be refined, improved, and expanded for other use-cases.
+
+But even if your logic/requirements are different, the flow presented at the beginning shouldn't be that different from the one you should adopt.
+
+And if you want to have a look at the full code I wrote in the example, you can find it here: [https://codesandbox.io/s/themes-tbclf](https://codesandbox.io/s/themes-tbclf).
+
+# [VII Light/dark mode: Corrections - Part Seven](https://dev.to/ayc0/lightdark-mode-corrections-5e19)
+
+## Issues Corrected:
+### 1. `meta` tag versus css `:root`
+### 2. Native system colors
+### 3. using `:root` with class names
+>Note: The `:root` CSS [pseudo-class](https://developer.mozilla.org/en-US/docs/Web/CSS/Pseudo-classes) matches the root element of a tree representing the document. In HTML, `:root` represents the `<html>` element and is identical to the selector `html`, except that its ***specificity*** is higher.
+
+After some tests, I can confirm that the following works fine:
+```
+:root.dark-mode {
+  /* Works great! */
+}
+/* Equivalent to html but with a greater specificity */
+html.dark-mode {
+  /* Works great! */
+}
+```
+> Note: `:root` has specificity of `(0, 1, 0)`, and `html` has a specificity of `(0, 0, 1)`.
+### 4. Using data attriutes instead of class names
+In this post, I mentioned that we were using 2 classes .light and .dark. And that we were using this function to control those classes:
+```
+const colorScheme = document.querySelector('meta[name="color-scheme"]');
+function applyTheme(theme) {
+  document.body.className = theme;
+  colorScheme.content = theme;
+}
+```
+The issue with it, is that it overrides all classes set on the body. This is fine for this post, as we don’t have any other classes, but it may not be in your own application.
+
+A more realistic function would be something like:
+```
+const colorScheme = document.querySelector('meta[name="color-scheme"]');
+function applyTheme(theme) {
+  document.body.classList.remove('light');
+  document.body.classList.remove('dark');
+  document.body.classList.add(theme);
+  colorScheme.content = theme;
+}
+```
+You can see that it's a bit tedious to have to remove all classes, especially if you start to add more themes, like low/high contrast, etc.
+
+A better solution would be to use data attributes, to which we can add the correction we did for the `color-scheme`, and for the root `:root` :
+```
+:root[data-theme="light"] {
+  color-scheme: light;
+  --text: black;
+  --background: white;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --text: white;
+  --background: black;
+}
+
+body {
+  color: var(--text);
+  background: var(--background);
+}
+```
+And to set it:
+```
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+}
+```
+> Note: (`document.documentElement` is the `<html>` node, see on the [MDN documentElement documentation](https://developer.mozilla.org/en-US/docs/Web/API/Document/documentElement))
+
+### Real time system mode
+In this post, I explained how to use a custom picker and how to use a `system` mode.
+
+I forgot to say that this system mode won’t follow the current theme users have on their machine. Instead it just computes this theme when the mode is picked.
+
+This mechanism is more complicated and can be explained in its own post. But in the meantime, the React implementation includes this feature.
